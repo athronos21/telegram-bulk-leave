@@ -1,9 +1,13 @@
 import axios from "axios";
 
+// In production, VITE_API_URL points to the Railway backend
+// In dev, Vite proxy handles /auth and /dialogs → localhost:8000
+const BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
 const api = axios.create({
-  baseURL: "/",
+  baseURL: BASE_URL,
   headers: { "Content-Type": "application/json" },
-  withCredentials: true, // send session cookie with every request
+  withCredentials: true,
 });
 
 export interface Dialog {
@@ -49,7 +53,7 @@ export function leaveDialogsStream(
   onProgress: (event: LeaveEvent) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    fetch("/dialogs/leave", {
+    fetch(`${BASE_URL}/dialogs/leave`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include", // send session cookie
