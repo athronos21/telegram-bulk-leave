@@ -1,29 +1,30 @@
 import { useEffect, useState } from "react";
-import { getAuthStatus } from "./api/client";
+import { isAuthorized, getApiCredentials } from "./telegram/client";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import ApiSetup from "./pages/ApiSetup";
 
 export default function App() {
-  const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [screen, setScreen] = useState<"loading" | "api-setup" | "login" | "dashboard">("loading");
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  useEffect(() => { init(); }, []);
 
-  const checkAuth = async () => {
+  const init = async () => {
+    const { apiId, apiHash } = getApiCredentials();
+    if (!apiId || !apiHash) {
+      setScreen("api-setup");
+      return;
+    }
     try {
-      const res = await getAuthStatus();
-      setAuthorized(res.data.authorized);
+      const auth = await isAuthorized();
+      setScreen(auth ? "dashboard" : "login");
     } catch {
-      setAuthorized(false);
+      setScreen("login");
     }
   };
 
-  if (authorized === null) return <p>Loading...</p>;
-
-  return authorized ? (
-    <Dashboard onLogout={() => setAuthorized(false)} />
-  ) : (
-    <Login onSuccess={() => setAuthorized(true)} />
-  );
+  if (screen === "loading") return <div className="page-login"><p>Loading...</p></div>;
+  if (screen === "api-setup") return <ApiSetup onDone={() => setScreen("login")} />;
+  if (screen === "login")     return <Login onSuccess={() => setScreen("dashboard")} />;
+  return <Dashboard onLogout={() => setScreen("login")} />;
 }

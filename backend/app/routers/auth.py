@@ -20,7 +20,7 @@ class SendCodeRequest(BaseModel):
 
 
 class SignInRequest(BaseModel):
-    code: str
+    code: str | None = None
     password: str | None = None
 
 
@@ -77,7 +77,15 @@ async def sign_in(
         await tg_auth.sign_in(sid, body.code, body.password)
         return {"message": "Signed in successfully"}
     except Exception as e:
-        raise HTTPException(status_code=401, detail=str(e))
+        err = str(e)
+        # Telethon raises SessionPasswordNeededError — surface a clean structured code
+        # so the frontend doesn't have to sniff error message text
+        if "SessionPasswordNeeded" in type(e).__name__ or "password" in err.lower():
+            raise HTTPException(
+                status_code=401,
+                detail={"code": "2fa_required", "message": "2FA password required"},
+            )
+        raise HTTPException(status_code=401, detail=err)
 
 
 @router.post("/sign-out")

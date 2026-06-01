@@ -1,4 +1,4 @@
-import { Dialog } from "../api/client";
+import { Dialog } from "../telegram/client";
 
 interface Props {
   dialogs: Dialog[];
@@ -10,20 +10,12 @@ interface Props {
 
 const TYPE_EMOJI: Record<string, string> = {
   channel: "📢",
-  group: "👥",
-  bot: "🤖",
+  group:   "👥",
+  bot:     "🤖",
 };
 
-export default function ChatList({
-  dialogs,
-  selected,
-  onToggle,
-  onSelectAll,
-  onClearAll,
-}: Props) {
-  if (dialogs.length === 0) {
-    return <p className="empty">No chats found.</p>;
-  }
+export default function ChatList({ dialogs, selected, onToggle, onSelectAll, onClearAll }: Props) {
+  if (dialogs.length === 0) return <p className="empty">No chats found.</p>;
 
   return (
     <div className="chat-list">
@@ -33,22 +25,16 @@ export default function ChatList({
         <span>{selected.size} selected</span>
       </div>
       <ul>
-        {dialogs.map((d) => (
-          <li
-            key={d.id}
-            className={selected.has(d.id) ? "selected" : ""}
-            onClick={() => onToggle(d.id)}
-          >
-            <input
-              type="checkbox"
-              checked={selected.has(d.id)}
+        {dialogs.map(d => (
+          <li key={d.id} className={selected.has(d.id) ? "selected" : ""}
+            onClick={() => onToggle(d.id)}>
+            <input type="checkbox" checked={selected.has(d.id)}
               onChange={() => onToggle(d.id)}
-              onClick={(e) => e.stopPropagation()}
-            />
+              onClick={e => e.stopPropagation()} />
             <span className="type-icon">{TYPE_EMOJI[d.type] ?? "💬"}</span>
             <span className="chat-name">{d.name}</span>
-            {d.unread_count > 0 && (
-              <span className="unread-badge">{d.unread_count}</span>
+            {d.unreadCount > 0 && (
+              <span className="unread-badge">{d.unreadCount}</span>
             )}
           </li>
         ))}

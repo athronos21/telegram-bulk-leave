@@ -13,11 +13,18 @@ async def send_code(session_id: str, phone: str) -> None:
     set_session_meta(session_id, phone, result.phone_code_hash)
 
 
-async def sign_in(session_id: str, code: str, password: str | None = None) -> bool:
+async def sign_in(session_id: str, code: str | None, password: str | None = None) -> bool:
     client = await get_or_create_client(session_id)
     meta = get_session_meta(session_id)
     if not meta:
         raise ValueError("Session not found")
+
+    # If a password is provided, go straight to 2FA — the code was already
+    # consumed on the previous attempt that raised SessionPasswordNeededError.
+    if password and not code:
+        await client.sign_in(password=password)
+        return True
+
     try:
         await client.sign_in(
             phone=meta["phone_number"],
@@ -29,6 +36,7 @@ async def sign_in(session_id: str, code: str, password: str | None = None) -> bo
         if password:
             await client.sign_in(password=password)
             return True
+        # Signal to the caller that 2FA is required
         raise
 
 

@@ -8,3 +8,13 @@ sessions/
 *.session
 *.session-journal
 .DS_Store
+
+# Build artifacts
+backend/build/
+backend/dist/
+backend/*.spec
+electron/node_modules/
+electron/release/
+frontend/android/
+frontend/tsconfig.tsbuildinfo
+frontend/capacitor.config.ts

@@ -1,5 +1,7 @@
 import asyncio
+import os
 import time
+from pathlib import Path
 from telethon import TelegramClient
 from app.config import settings
 
@@ -8,12 +10,20 @@ _sessions: dict[str, dict] = {}
 
 SESSION_TTL = 60 * 60 * 2  # 2 hours of inactivity
 
+# Sessions dir: prefer SESSIONS_DIR env var (set by Electron), then fall back
+# to backend/sessions/ relative to this file — works regardless of cwd.
+_SESSIONS_DIR = Path(
+    os.environ.get("SESSIONS_DIR")
+    or Path(__file__).resolve().parent.parent.parent / "sessions"
+)
+
 
 def _session_file(session_id: str) -> str:
-    return f"sessions/{session_id}"
+    return str(_SESSIONS_DIR / session_id)
 
 
 async def get_or_create_client(session_id: str) -> TelegramClient:
+    _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
     if session_id not in _sessions:
         client = TelegramClient(
             _session_file(session_id),
@@ -52,6 +62,12 @@ async def destroy_session(session_id: str):
         if client.is_connected():
             await client.log_out()
             await client.disconnect()
+    # Remove the session file from disk
+    session_path = Path(_session_file(session_id) + ".session")
+    try:
+        session_path.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 async def cleanup_expired():
@@ -67,6 +83,12 @@ async def cleanup_expired():
         try:
             if client.is_connected():
                 await client.disconnect()
+        except Exception:
+            pass
+        # Remove the session file from disk
+        session_path = Path(_session_file(sid) + ".session")
+        try:
+            session_path.unlink(missing_ok=True)
         except Exception:
             pass
 

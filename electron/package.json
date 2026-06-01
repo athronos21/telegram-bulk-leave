@@ -1,0 +1,45 @@
+{
+  "name": "telegram-bulk-leave",
+  "version": "1.0.0",
+  "description": "Leave multiple Telegram chats at once",
+  "author": {
+    "name": "TBL",
+    "email": "tbl@localhost"
+  },
+  "homepage": "https://github.com/telegram-bulk-leave",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --linux"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.5"
+  },
+  "build": {
+    "appId": "com.tbl.app",
+    "productName": "Telegram Bulk Leave",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/dist",
+        "to": "frontend"
+      },
+      {
+        "from": "../backend/dist/tbl-backend",
+        "to": "backend/tbl-backend"
+      }
+    ],
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Utility"
+    }
+  }
+}
