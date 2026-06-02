@@ -5,7 +5,12 @@ interface Props {
   onSearchChange: (s: string) => void;
 }
 
-const FILTERS = ["all", "channel", "group", "bot"];
+const FILTERS: { key: string; label: string }[] = [
+  { key: "all",     label: "All"      },
+  { key: "channel", label: "📢 Channels" },
+  { key: "group",   label: "👥 Groups"   },
+  { key: "bot",     label: "🤖 Bots"     },
+];
 
 export default function FilterBar({
   filter,
@@ -17,18 +22,19 @@ export default function FilterBar({
     <div className="filter-bar">
       <input
         type="text"
-        placeholder="Search by name..."
+        placeholder="🔍  Search chats…"
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
+        style={{ flex: 1, minWidth: 160 }}
       />
       <div className="filter-buttons">
         {FILTERS.map((f) => (
           <button
-            key={f}
-            className={filter === f ? "active" : ""}
-            onClick={() => onFilterChange(f)}
+            key={f.key}
+            className={filter === f.key ? "active" : ""}
+            onClick={() => onFilterChange(f.key)}
           >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
+            {f.label}
           </button>
         ))}
       </div>
