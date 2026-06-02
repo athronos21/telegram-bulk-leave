@@ -274,25 +274,39 @@ async function getMe(): Promise<any> {
   return _me;
 }
 
-async function deleteDialog(entity: any): Promise<void> {
+async function deleteDialog(entity: any, blockBots = true): Promise<void> {
   const client = await getClient();
   const className = entity?.className;
+
   if (className === "Channel") {
     await client.invoke(new Api.channels.LeaveChannel({ channel: entity }));
+
   } else if (className === "Chat") {
+    // Basic group — check ownership first
+    if (entity.creator) {
+      throw new Error("You own this group — transfer ownership or delete it first.");
+    }
     const me = await getMe();
     await client.invoke(new Api.messages.DeleteChatUser({
       chatId: entity.id,
       userId: me as any,
       revokeHistory: false,
     }));
+
   } else {
+    // Bot or user — delete the conversation
     await client.invoke(new Api.messages.DeleteHistory({
       peer: entity,
       maxId: 0,
       justClear: false,
       revoke: false,
     }));
+    // Block the bot so it can't message you again
+    if (blockBots && entity?.bot) {
+      try {
+        await client.invoke(new Api.contacts.Block({ id: entity }));
+      } catch { /* non-fatal — dialog is already removed */ }
+    }
   }
 }
 
