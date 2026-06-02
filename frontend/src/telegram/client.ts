@@ -125,6 +125,7 @@ export async function signIn2FA(password: string): Promise<void> {
   const check = await computeCheck(pwdInfo, password);
   await client.invoke(new Api.auth.CheckPassword({ password: check }));
   saveSession(client.session.save() as unknown as string);
+  clearLoginState();
 }
 
 export async function signOut(): Promise<void> {
@@ -222,7 +223,7 @@ export async function getDialogs(
       if (!type) continue;
       newItems.push({
         id:          Number(peer?.channelId ?? peer?.chatId ?? peer?.userId ?? 0),
-        name:        entity?.title ?? entity?.firstName ?? entity?.username ?? "Unknown",
+        name:        entity?.title ?? [entity?.firstName, entity?.lastName].filter(Boolean).join(" ") ?? entity?.username ?? "Unknown",
         type,
         unreadCount: d.unreadCount ?? 0,
         entity,
@@ -238,7 +239,19 @@ export async function getDialogs(
     if (!lastMsg) break;
     offsetDate = lastMsg.date;
     offsetId   = lastMsg.id;
-    offsetPeer = lastDialog.peer;
+    // Resolve offsetPeer to a proper InputPeer for the next page
+    try {
+      const lastPeerEntity = entityMap[
+        lastDialog.peer?.className === "PeerChannel" ? `chat_${lastDialog.peer.channelId}` :
+        lastDialog.peer?.className === "PeerChat"    ? `chat_${lastDialog.peer.chatId}`    :
+        `user_${lastDialog.peer?.userId}`
+      ];
+      offsetPeer = lastPeerEntity
+        ? await client.getInputEntity(lastPeerEntity)
+        : lastDialog.peer;
+    } catch {
+      offsetPeer = lastDialog.peer;
+    }
 
     if (dialogs.length < BATCH_SIZE) break; // last page
   }
@@ -289,11 +302,9 @@ async function deleteDialog(entity: any, blockBots = true): Promise<void> {
     if (entity.creator) {
       throw new Error("You own this group — transfer ownership or delete it first.");
     }
-    const me = await getMe();
-    const meInput = await client.getInputEntity(me);
     await client.invoke(new Api.messages.DeleteChatUser({
       chatId: entity.id,
-      userId: meInput as any,
+      userId: new Api.InputUserSelf(),
       revokeHistory: false,
     }));
 
