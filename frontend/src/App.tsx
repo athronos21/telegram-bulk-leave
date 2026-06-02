@@ -23,7 +23,13 @@ export default function App() {
     }
   };
 
-  if (screen === "loading") return <div className="page-login"><p>Loading...</p></div>;
+  if (screen === "loading") return (
+    <div className="page-login">
+      <span style={{ fontSize: "2.5rem" }}>📤</span>
+      <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+      <span className="spinner" />
+    </div>
+  );
   if (screen === "api-setup") return <ApiSetup onDone={() => setScreen("login")} />;
   if (screen === "login")     return <Login onSuccess={() => setScreen("dashboard")} />;
   return <Dashboard onLogout={() => setScreen("login")} />;

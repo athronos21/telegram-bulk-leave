@@ -25,7 +25,7 @@ export default function ProgressBar({ total, done, failed }: Props) {
         <div className="progress-fill-failed"  style={{ width: `${failedPercent}%` }} />
       </div>
       <div style={{ display: "flex", gap: "1rem", fontSize: "0.8rem", marginTop: "0.4rem" }}>
-        <span style={{ color: "#4caf50" }}>✅ {done} left</span>
+        <span style={{ color: "#4caf50" }}>✅ {done} done</span>
         {failed > 0 && <span style={{ color: "var(--accent)" }}>❌ {failed} failed</span>}
       </div>
     </div>

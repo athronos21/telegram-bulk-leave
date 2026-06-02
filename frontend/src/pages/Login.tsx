@@ -19,10 +19,16 @@ export default function Login({ onSuccess }: Props) {
 
   const handleSendCode = async () => {
     setError(""); setInfo(""); setLoading(true);
+    const cleaned = phone.trim();
+    if (!/^\+\d{7,15}$/.test(cleaned)) {
+      setError("Enter a valid phone number with country code (e.g. +1234567890)");
+      setLoading(false);
+      return;
+    }
     try {
-      await sendCode(phone);
+      await sendCode(cleaned);
       setStep("code");
-      setInfo(`Code sent to ${phone}`);
+      setInfo(`Code sent to ${cleaned}`);
     } catch (e: any) {
       setError(e.message || "Failed to send code");
     } finally { setLoading(false); }
