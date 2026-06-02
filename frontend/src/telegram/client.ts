@@ -231,6 +231,19 @@ export async function getDialogs(
     }
 
     result.push(...newItems);
+
+    // Deduplicate by ID — keep first occurrence, remove any later duplicates
+    // (Telegram pagination sometimes returns the boundary item twice)
+    const seen = new Set<number>();
+    for (let i = 0; i < result.length; i++) {
+      if (seen.has(result[i].id)) {
+        result.splice(i, 1);
+        i--;
+      } else {
+        seen.add(result[i].id);
+      }
+    }
+
     onBatch?.([...result]);
 
     // Prepare offset for next page
