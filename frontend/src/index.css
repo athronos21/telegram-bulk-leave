@@ -258,6 +258,22 @@ header {
 /* ── Leave action ────────────────────────────────────────────────── */
 .leave-action {
   margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.speed-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.speed-selector button {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
 }
 
 /* ── Shared inputs ───────────────────────────────────────────────── */

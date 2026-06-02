@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dialog, LeaveEvent, getDialogs, leaveDialogs, signOut } from "../telegram/client";
+import { Dialog, LeaveEvent, LeaveSpeed, getDialogs, leaveDialogs, signOut } from "../telegram/client";
 import ChatList from "../components/ChatList";
 import FilterBar from "../components/FilterBar";
 import ProgressBar from "../components/ProgressBar";
@@ -16,6 +16,7 @@ export default function Dashboard({ onLogout }: Props) {
   const [loading,   setLoading]   = useState(true);
   const [loadMsg,   setLoadMsg]   = useState("Loading chats…");
   const [leaving,   setLeaving]   = useState(false);
+  const [speed,     setSpeed]     = useState<LeaveSpeed>("fast");
   const [progress,  setProgress]  = useState({ total: 0, done: 0, failed: 0 });
   const [lastEvent, setLastEvent] = useState("");
   const [error,     setError]     = useState("");
@@ -59,7 +60,7 @@ export default function Dashboard({ onLogout }: Props) {
     setLastEvent("");
 
     try {
-      for await (const ev of leaveDialogs(toLeave)) {
+      for await (const ev of leaveDialogs(toLeave, speed)) {
         setProgress({ total: ev.total, done: ev.done, failed: ev.failed });
         if (ev.status === "success") setLastEvent(`✅ Left: ${ev.name}`);
         else                         setLastEvent(`❌ Failed: ${ev.name}`);
@@ -112,6 +113,20 @@ export default function Dashboard({ onLogout }: Props) {
       )}
 
       <div className="leave-action">
+        <div className="speed-selector">
+          <span>Speed:</span>
+          {(["safe", "fast", "turbo"] as LeaveSpeed[]).map(s => (
+            <button
+              key={s}
+              className={speed === s ? "active" : "btn-ghost"}
+              onClick={() => setSpeed(s)}
+              disabled={leaving}
+              title={s === "safe" ? "0.8–1.5s delay" : s === "fast" ? "0.3–0.7s delay" : "0.1–0.3s delay — may trigger flood wait"}
+            >
+              {s === "safe" ? "🐢 Safe" : s === "fast" ? "⚡ Fast" : "🚀 Turbo"}
+            </button>
+          ))}
+        </div>
         <button className="leave-btn" onClick={handleLeave}
           disabled={selected.size === 0 || leaving || loading}>
           {leaving

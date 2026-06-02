@@ -134,6 +134,7 @@ export async function signOut(): Promise<void> {
     await client.disconnect();
   } catch { /* ignore */ }
   _client = null;
+  _me = null;
   clearSession();
   clearLoginState();
   clearDialogCache();
@@ -256,21 +257,36 @@ export interface LeaveEvent {
   total: number;
 }
 
+export type LeaveSpeed = "safe" | "fast" | "turbo";
+
+const SPEED_DELAY: Record<LeaveSpeed, [number, number]> = {
+  safe:  [800,  1500], // 0.8–1.5s  — very safe
+  fast:  [300,  700],  // 0.3–0.7s  — 3x faster, still fine
+  turbo: [100,  300],  // 0.1–0.3s  — max speed, FLOOD_WAIT may kick in
+};
+
+// Cache getMe() so group leaves don't make an extra API call every time
+let _me: any = null;
+async function getMe(): Promise<any> {
+  if (_me) return _me;
+  const client = await getClient();
+  _me = await client.getMe();
+  return _me;
+}
+
 async function deleteDialog(entity: any): Promise<void> {
   const client = await getClient();
-  // Use the raw MTProto calls matching entity type
   const className = entity?.className;
   if (className === "Channel") {
     await client.invoke(new Api.channels.LeaveChannel({ channel: entity }));
   } else if (className === "Chat") {
-    const me = await client.getMe();
+    const me = await getMe();
     await client.invoke(new Api.messages.DeleteChatUser({
       chatId: entity.id,
       userId: me as any,
       revokeHistory: false,
     }));
   } else {
-    // Bot or user — delete the conversation history
     await client.invoke(new Api.messages.DeleteHistory({
       peer: entity,
       maxId: 0,
@@ -281,11 +297,13 @@ async function deleteDialog(entity: any): Promise<void> {
 }
 
 export async function* leaveDialogs(
-  dialogs: Dialog[]
+  dialogs: Dialog[],
+  speed: LeaveSpeed = "fast"
 ): AsyncGenerator<LeaveEvent> {
   const total = dialogs.length;
   let done = 0;
   let failed = 0;
+  const [minDelay, maxDelay] = SPEED_DELAY[speed];
 
   for (const d of dialogs) {
     try {
@@ -293,15 +311,16 @@ export async function* leaveDialogs(
       done++;
       yield { id: d.id, name: d.name, status: "success", done, failed, total };
     } catch (e: any) {
-      // Handle flood wait
       if (e.errorMessage?.startsWith("FLOOD_WAIT_")) {
+        // Telegram told us exactly how long to wait — respect it
         const wait = (parseInt(e.errorMessage.split("_").pop()) + 2) * 1000;
+        yield { id: d.id, name: d.name, status: "failed", reason: `Flood wait ${Math.round(wait/1000)}s — retrying…`, done, failed, total };
         await sleep(wait);
         try {
           await deleteDialog(d.entity);
           done++;
           yield { id: d.id, name: d.name, status: "success", done, failed, total };
-          await sleep(randomDelay());
+          await sleep(randomDelay(minDelay, maxDelay));
           continue;
         } catch (e2: any) {
           failed++;
@@ -312,9 +331,9 @@ export async function* leaveDialogs(
       failed++;
       yield { id: d.id, name: d.name, status: "failed", reason: String(e.message), done, failed, total };
     }
-    await sleep(randomDelay());
+    await sleep(randomDelay(minDelay, maxDelay));
   }
 }
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
-function randomDelay()     { return 1000 + Math.random() * 2000; }
+function randomDelay(min: number, max: number) { return min + Math.random() * (max - min); }
