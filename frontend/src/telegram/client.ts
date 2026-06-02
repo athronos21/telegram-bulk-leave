@@ -278,25 +278,29 @@ async function deleteDialog(entity: any, blockBots = true): Promise<void> {
   const client = await getClient();
   const className = entity?.className;
 
+  // Resolve to a proper InputPeer/InputChannel with accessHash
+  // Without this, Telegram silently ignores or rejects the call
+  const inputEntity = await client.getInputEntity(entity);
+
   if (className === "Channel") {
-    await client.invoke(new Api.channels.LeaveChannel({ channel: entity }));
+    await client.invoke(new Api.channels.LeaveChannel({ channel: inputEntity }));
 
   } else if (className === "Chat") {
-    // Basic group — check ownership first
     if (entity.creator) {
       throw new Error("You own this group — transfer ownership or delete it first.");
     }
     const me = await getMe();
+    const meInput = await client.getInputEntity(me);
     await client.invoke(new Api.messages.DeleteChatUser({
       chatId: entity.id,
-      userId: me as any,
+      userId: meInput as any,
       revokeHistory: false,
     }));
 
   } else {
     // Bot or user — delete the conversation
     await client.invoke(new Api.messages.DeleteHistory({
-      peer: entity,
+      peer: inputEntity,
       maxId: 0,
       justClear: false,
       revoke: false,
@@ -304,7 +308,7 @@ async function deleteDialog(entity: any, blockBots = true): Promise<void> {
     // Block the bot so it can't message you again
     if (blockBots && entity?.bot) {
       try {
-        await client.invoke(new Api.contacts.Block({ id: entity }));
+        await client.invoke(new Api.contacts.Block({ id: inputEntity }));
       } catch { /* non-fatal — dialog is already removed */ }
     }
   }
