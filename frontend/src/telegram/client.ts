@@ -5,6 +5,7 @@
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
 import { Api } from "telegram/tl";
+import bigInt from "big-integer";
 
 // Persisted in localStorage so the user stays logged in across app restarts
 const SESSION_KEY = "tg_session";
@@ -135,6 +136,7 @@ export async function signOut(): Promise<void> {
   _client = null;
   clearSession();
   clearLoginState();
+  clearDialogCache();
 }
 
 // ── Dialogs ───────────────────────────────────────────────────────────────────
@@ -147,6 +149,13 @@ export interface Dialog {
   entity: any;
 }
 
+// In-memory cache — cleared on sign out
+let _dialogCache: Dialog[] | null = null;
+
+export function clearDialogCache() {
+  _dialogCache = null;
+}
+
 function classifyEntity(entity: any): "channel" | "group" | "bot" | null {
   if (!entity) return null;
   const t = entity.className;
@@ -156,22 +165,84 @@ function classifyEntity(entity: any): "channel" | "group" | "bot" | null {
   return null;
 }
 
-export async function getDialogs(): Promise<Dialog[]> {
-  const client = await getClient();
-  const dialogs = await client.getDialogs({ limit: 500 });
-  const result: Dialog[] = [];
+const BATCH_SIZE = 100;
+const MAX_DIALOGS = 500;
 
-  for (const d of dialogs) {
-    const type = classifyEntity(d.entity);
-    if (!type) continue;
-    result.push({
-      id:          Number(d.id),
-      name:        d.title || d.name || "Unknown",
-      type,
-      unreadCount: d.unreadCount ?? 0,
-      entity:      d.entity,
-    });
+/**
+ * Streams dialogs in batches of BATCH_SIZE.
+ * Calls onBatch after each batch so the UI can render incrementally.
+ * Returns the full list when done.
+ */
+export async function getDialogs(
+  onBatch?: (dialogs: Dialog[]) => void,
+  forceRefresh = false
+): Promise<Dialog[]> {
+  if (_dialogCache && !forceRefresh) {
+    onBatch?.(_dialogCache);
+    return _dialogCache;
   }
+
+  const client = await getClient();
+  const result: Dialog[] = [];
+  let offsetDate = 0;
+  let offsetId = 0;
+  let offsetPeer: any = new Api.InputPeerEmpty();
+
+  while (result.length < MAX_DIALOGS) {
+    const batch = await client.invoke(
+      new Api.messages.GetDialogs({
+        offsetDate,
+        offsetId,
+        offsetPeer,
+        limit:       BATCH_SIZE,
+        hash:        bigInt(0),
+        excludePinned: false,
+        folderId:    undefined,
+      })
+    ) as any;
+
+    const dialogs = batch.dialogs ?? [];
+    if (dialogs.length === 0) break;
+
+    // Build entity map from the response
+    const entityMap: Record<string, any> = {};
+    for (const u of batch.users  ?? []) entityMap[`user_${u.id}`]    = u;
+    for (const c of batch.chats  ?? []) entityMap[`chat_${c.id}`]    = c;
+
+    const newItems: Dialog[] = [];
+    for (const d of dialogs) {
+      const peer = d.peer;
+      let entity: any = null;
+      if (peer?.className === "PeerChannel") entity = entityMap[`chat_${peer.channelId}`];
+      else if (peer?.className === "PeerChat") entity = entityMap[`chat_${peer.chatId}`];
+      else if (peer?.className === "PeerUser") entity = entityMap[`user_${peer.userId}`];
+
+      const type = classifyEntity(entity);
+      if (!type) continue;
+      newItems.push({
+        id:          Number(peer?.channelId ?? peer?.chatId ?? peer?.userId ?? 0),
+        name:        entity?.title ?? entity?.firstName ?? entity?.username ?? "Unknown",
+        type,
+        unreadCount: d.unreadCount ?? 0,
+        entity,
+      });
+    }
+
+    result.push(...newItems);
+    onBatch?.([...result]);
+
+    // Prepare offset for next page
+    const lastDialog = dialogs[dialogs.length - 1];
+    const lastMsg    = (batch.messages ?? []).find((m: any) => m.id === lastDialog.topMessage);
+    if (!lastMsg) break;
+    offsetDate = lastMsg.date;
+    offsetId   = lastMsg.id;
+    offsetPeer = lastDialog.peer;
+
+    if (dialogs.length < BATCH_SIZE) break; // last page
+  }
+
+  _dialogCache = result;
   return result;
 }
 
