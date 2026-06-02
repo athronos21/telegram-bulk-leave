@@ -67,30 +67,49 @@ export async function isAuthorized(): Promise<boolean> {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
-let _phoneCodeHash = "";
-let _phone = "";
+const PHONE_KEY      = "tg_phone";
+const PHONE_HASH_KEY = "tg_phone_hash";
+
+function saveLoginState(phone: string, phoneCodeHash: string) {
+  sessionStorage.setItem(PHONE_KEY,      phone);
+  sessionStorage.setItem(PHONE_HASH_KEY, phoneCodeHash);
+}
+
+function loadLoginState(): { phone: string; phoneCodeHash: string } {
+  return {
+    phone:         sessionStorage.getItem(PHONE_KEY)      ?? "",
+    phoneCodeHash: sessionStorage.getItem(PHONE_HASH_KEY) ?? "",
+  };
+}
+
+function clearLoginState() {
+  sessionStorage.removeItem(PHONE_KEY);
+  sessionStorage.removeItem(PHONE_HASH_KEY);
+}
 
 export async function sendCode(phone: string): Promise<void> {
   const client = await getClient();
-  _phone = phone;
   const result = await client.sendCode(
     { apiId: getApiCredentials().apiId, apiHash: getApiCredentials().apiHash },
     phone
   );
-  _phoneCodeHash = result.phoneCodeHash;
+  saveLoginState(phone, result.phoneCodeHash);
 }
 
 export async function signIn(code: string): Promise<"ok" | "2fa"> {
   const client = await getClient();
+  const { phone, phoneCodeHash } = loadLoginState();
+  if (!phone || !phoneCodeHash) throw new Error("Login session expired — please re-enter your phone number.");
   try {
     await client.invoke(
       new Api.auth.SignIn({
-        phoneNumber: _phone,
-        phoneCodeHash: _phoneCodeHash,
+        phoneNumber: phone,
+        phoneCodeHash,
         phoneCode: code,
       })
     );
     saveSession(client.session.save() as unknown as string);
+    clearLoginState();
     return "ok";
   } catch (e: any) {
     if (e.errorMessage === "SESSION_PASSWORD_NEEDED") return "2fa";
@@ -115,6 +134,7 @@ export async function signOut(): Promise<void> {
   } catch { /* ignore */ }
   _client = null;
   clearSession();
+  clearLoginState();
 }
 
 // ── Dialogs ───────────────────────────────────────────────────────────────────
